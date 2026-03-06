@@ -13,6 +13,9 @@
 //===----------------------------------------------------------------------===//
 
 @preconcurrency import Crypto
+#if canImport(_CryptoExtras)
+import _CryptoExtras
+#endif
 import NIOCore
 
 #if canImport(FoundationEssentials)
@@ -52,6 +55,12 @@ public struct NIOSSHPrivateKey: Sendable {
         self.backingKey = .ecdsaP521(key)
     }
 
+    #if canImport(_CryptoExtras)
+    public init(rsaKey key: _RSA.Signing.PrivateKey) {
+        self.backingKey = .rsaPrivateKey(key)
+    }
+    #endif
+
     #if canImport(Darwin)
     public init(secureEnclaveP256Key key: SecureEnclave.P256.Signing.PrivateKey) {
         self.backingKey = .secureEnclaveP256(key)
@@ -82,12 +91,21 @@ public struct NIOSSHPrivateKey: Sendable {
             return ["ecdsa-sha2-nistp384"]
         case .ecdsaP521:
             return ["ecdsa-sha2-nistp521"]
+        #if canImport(_CryptoExtras)
+        case .rsaPrivateKey:
+            return ["rsa-sha2-512", "rsa-sha2-256"]
+        #endif
         case .signingDelegate(_, let publicKey):
+            #if canImport(_CryptoExtras)
+            if publicKey.keyPrefix.elementsEqual(NIOSSHPublicKey.rsaPublicKeyPrefix) {
+                return ["rsa-sha2-512", "rsa-sha2-256"]
+            }
+            #endif
             return [String(publicKey.keyPrefix)[...]]
-        #if canImport(Darwin)
+            #if canImport(Darwin)
         case .secureEnclaveP256:
             return ["ecdsa-sha2-nistp256"]
-        #endif
+            #endif
         }
     }
 }
@@ -99,6 +117,9 @@ extension NIOSSHPrivateKey {
         case ecdsaP256(P256.Signing.PrivateKey)
         case ecdsaP384(P384.Signing.PrivateKey)
         case ecdsaP521(P521.Signing.PrivateKey)
+        #if canImport(_CryptoExtras)
+        case rsaPrivateKey(_RSA.Signing.PrivateKey)
+        #endif
         case signingDelegate(@Sendable (ByteBufferView) throws -> NIOSSHSignature, NIOSSHPublicKey)
 
         #if canImport(Darwin)
@@ -130,6 +151,15 @@ extension NIOSSHPrivateKey {
                 try key.signature(for: ptr)
             }
             return NIOSSHSignature(backingSignature: .ecdsaP521(signature))
+        #if canImport(_CryptoExtras)
+        case .rsaPrivateKey(let key):
+            let signature = try key.signature(for: digest, padding: .insecurePKCS1v1_5)
+            if digest is SHA512Digest {
+                return NIOSSHSignature(backingSignature: .rsaSHA512(.data(signature.rawRepresentation)))
+            } else {
+                return NIOSSHSignature(backingSignature: .rsaSHA256(.data(signature.rawRepresentation)))
+            }
+        #endif
 
         case .signingDelegate:
             // Signing delegates are not supported for digest-based signing
@@ -160,6 +190,12 @@ extension NIOSSHPrivateKey {
         case .ecdsaP521(let key):
             let signature = try key.signature(for: payload.bytes.readableBytesView)
             return NIOSSHSignature(backingSignature: .ecdsaP521(signature))
+        #if canImport(_CryptoExtras)
+        case .rsaPrivateKey(let key):
+            let digest = SHA512.hash(data: payload.bytes.readableBytesView)
+            let signature = try key.signature(for: digest, padding: .insecurePKCS1v1_5)
+            return NIOSSHSignature(backingSignature: .rsaSHA512(.data(signature.rawRepresentation)))
+        #endif
         case .signingDelegate(let sign, _):
             let sshSignature = try sign(payload.bytes.readableBytesView)
             return sshSignature
@@ -184,6 +220,10 @@ extension NIOSSHPrivateKey {
             return NIOSSHPublicKey(backingKey: .ecdsaP384(privateKey.publicKey))
         case .ecdsaP521(let privateKey):
             return NIOSSHPublicKey(backingKey: .ecdsaP521(privateKey.publicKey))
+        #if canImport(_CryptoExtras)
+        case .rsaPrivateKey(let privateKey):
+            return NIOSSHPublicKey(backingKey: .rsaPublicKey(privateKey.publicKey))
+        #endif
         case .signingDelegate(_, let publicKey):
             return publicKey
         #if canImport(Darwin)

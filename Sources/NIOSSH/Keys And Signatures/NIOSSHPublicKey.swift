@@ -13,6 +13,9 @@
 //===----------------------------------------------------------------------===//
 
 @preconcurrency import Crypto
+#if canImport(_CryptoExtras)
+import _CryptoExtras
+#endif
 import Foundation
 import NIOCore
 import NIOFoundationCompat
@@ -94,12 +97,15 @@ extension NIOSSHPublicKey {
             return digest.withUnsafeBytes { digestPtr in
                 key.isValidSignature(sig, for: digestPtr)
             }
+        #if canImport(_CryptoExtras)
+        case (.rsaPublicKey(let key), .rsaSHA256(let sig)):
+            return key.isValidSignature(.init(rawRepresentation: sig.rawBytes), for: digest, padding: .insecurePKCS1v1_5)
+        case (.rsaPublicKey(let key), .rsaSHA512(let sig)):
+            return key.isValidSignature(.init(rawRepresentation: sig.rawBytes), for: digest, padding: .insecurePKCS1v1_5)
+        #endif
         case (.certified(let key), _):
             return key.isValidSignature(signature, for: digest)
-        case (.ed25519, _),
-            (.ecdsaP256, _),
-            (.ecdsaP384, _),
-            (.ecdsaP521, _):
+        default:
             return false
         }
     }
@@ -116,12 +122,23 @@ extension NIOSSHPublicKey {
             return key.isValidSignature(sig, for: bytes.readableBytesView)
         case (.ecdsaP521(let key), .ecdsaP521(let sig)):
             return key.isValidSignature(sig, for: bytes.readableBytesView)
+        #if canImport(_CryptoExtras)
+        case (.rsaPublicKey(let key), .rsaSHA256(let sig)):
+            return key.isValidSignature(
+                .init(rawRepresentation: sig.rawBytes),
+                for: SHA256.hash(data: bytes.readableBytesView),
+                padding: .insecurePKCS1v1_5
+            )
+        case (.rsaPublicKey(let key), .rsaSHA512(let sig)):
+            return key.isValidSignature(
+                .init(rawRepresentation: sig.rawBytes),
+                for: SHA512.hash(data: bytes.readableBytesView),
+                padding: .insecurePKCS1v1_5
+            )
+        #endif
         case (.certified(let key), _):
             return key.isValidSignature(signature, for: bytes)
-        case (.ed25519, _),
-            (.ecdsaP256, _),
-            (.ecdsaP384, _),
-            (.ecdsaP521, _):
+        default:
             return false
         }
     }
@@ -138,12 +155,23 @@ extension NIOSSHPublicKey {
             return key.isValidSignature(sig, for: payload.bytes.readableBytesView)
         case (.ecdsaP521(let key), .ecdsaP521(let sig)):
             return key.isValidSignature(sig, for: payload.bytes.readableBytesView)
+        #if canImport(_CryptoExtras)
+        case (.rsaPublicKey(let key), .rsaSHA256(let sig)):
+            return key.isValidSignature(
+                .init(rawRepresentation: sig.rawBytes),
+                for: SHA256.hash(data: payload.bytes.readableBytesView),
+                padding: .insecurePKCS1v1_5
+            )
+        case (.rsaPublicKey(let key), .rsaSHA512(let sig)):
+            return key.isValidSignature(
+                .init(rawRepresentation: sig.rawBytes),
+                for: SHA512.hash(data: payload.bytes.readableBytesView),
+                padding: .insecurePKCS1v1_5
+            )
+        #endif
         case (.certified(let key), _):
             return key.isValidSignature(signature, for: payload)
-        case (.ed25519, _),
-            (.ecdsaP256, _),
-            (.ecdsaP384, _),
-            (.ecdsaP521, _):
+        default:
             return false
         }
     }
@@ -157,6 +185,9 @@ extension NIOSSHPublicKey {
         case ecdsaP256(P256.Signing.PublicKey)
         case ecdsaP384(P384.Signing.PublicKey)
         case ecdsaP521(P521.Signing.PublicKey)
+        #if canImport(_CryptoExtras)
+        case rsaPublicKey(_RSA.Signing.PublicKey)
+        #endif
         case certified(NIOSSHCertifiedPublicKey)  // This case recursively contains `NIOSSHPublicKey`.
     }
 
@@ -171,6 +202,10 @@ extension NIOSSHPublicKey {
 
     /// The prefix of a P521 ECDSA public key.
     internal static let ecdsaP521PublicKeyPrefix = "ecdsa-sha2-nistp521".utf8
+    #if canImport(_CryptoExtras)
+    /// The prefix of an RSA public key.
+    internal static let rsaPublicKeyPrefix = "ssh-rsa".utf8
+    #endif
 
     internal var keyPrefix: String.UTF8View {
         switch self.backingKey {
@@ -182,16 +217,35 @@ extension NIOSSHPublicKey {
             return Self.ecdsaP384PublicKeyPrefix
         case .ecdsaP521:
             return Self.ecdsaP521PublicKeyPrefix
+        #if canImport(_CryptoExtras)
+        case .rsaPublicKey:
+            return Self.rsaPublicKeyPrefix
+        #endif
         case .certified(let base):
             return base.keyPrefix
         }
     }
 
+    internal var preferredSignatureAlgorithm: String.UTF8View {
+        switch self.backingKey {
+        #if canImport(_CryptoExtras)
+        case .rsaPublicKey:
+            return "rsa-sha2-512".utf8
+        #endif
+        default:
+            return self.keyPrefix
+        }
+    }
+
     internal static var knownAlgorithms: [String.UTF8View] {
-        [
+        var algorithms: [String.UTF8View] = [
             Self.ed25519PublicKeyPrefix, Self.ecdsaP384PublicKeyPrefix, Self.ecdsaP256PublicKeyPrefix,
             Self.ecdsaP521PublicKeyPrefix,
         ]
+        #if canImport(_CryptoExtras)
+        algorithms += [Self.rsaPublicKeyPrefix, "rsa-sha2-256".utf8, "rsa-sha2-512".utf8]
+        #endif
+        return algorithms
     }
 }
 
@@ -207,13 +261,13 @@ extension NIOSSHPublicKey.BackingKey: Equatable {
             return lhs.rawRepresentation == rhs.rawRepresentation
         case (.ecdsaP521(let lhs), .ecdsaP521(let rhs)):
             return lhs.rawRepresentation == rhs.rawRepresentation
+        #if canImport(_CryptoExtras)
+        case (.rsaPublicKey(let lhs), .rsaPublicKey(let rhs)):
+            return lhs.derRepresentation == rhs.derRepresentation
+        #endif
         case (.certified(let lhs), .certified(let rhs)):
             return lhs == rhs
-        case (.ed25519, _),
-            (.ecdsaP256, _),
-            (.ecdsaP384, _),
-            (.ecdsaP521, _),
-            (.certified, _):
+        default:
             return false
         }
     }
@@ -234,8 +288,13 @@ extension NIOSSHPublicKey.BackingKey: Hashable {
         case .ecdsaP521(let pkey):
             hasher.combine(4)
             hasher.combine(pkey.rawRepresentation)
-        case .certified(let pkey):
+        #if canImport(_CryptoExtras)
+        case .rsaPublicKey(let pkey):
             hasher.combine(5)
+            hasher.combine(pkey.derRepresentation)
+        #endif
+        case .certified(let pkey):
+            hasher.combine(6)
             hasher.combine(pkey)
         }
     }
@@ -260,6 +319,11 @@ extension ByteBuffer {
         case .ecdsaP521(let key):
             writtenBytes += self.writeSSHString(NIOSSHPublicKey.ecdsaP521PublicKeyPrefix)
             writtenBytes += self.writeECDSAP521PublicKey(baseKey: key)
+        #if canImport(_CryptoExtras)
+        case .rsaPublicKey(let key):
+            writtenBytes += self.writeSSHString(NIOSSHPublicKey.rsaPublicKeyPrefix)
+            writtenBytes += self.writeRSAPublicKey(baseKey: key)
+        #endif
         case .certified(let key):
             return self.writeCertifiedKey(key)
         }
@@ -281,6 +345,10 @@ extension ByteBuffer {
             return self.writeECDSAP384PublicKey(baseKey: key)
         case .ecdsaP521(let key):
             return self.writeECDSAP521PublicKey(baseKey: key)
+        #if canImport(_CryptoExtras)
+        case .rsaPublicKey(let key):
+            return self.writeRSAPublicKey(baseKey: key)
+        #endif
         case .certified:
             preconditionFailure("Certified keys are the only callers of this method, and cannot contain themselves")
         }
@@ -310,10 +378,16 @@ extension ByteBuffer {
                 return try buffer.readECDSAP384PublicKey()
             } else if keyIdentifierBytes.elementsEqual(NIOSSHPublicKey.ecdsaP521PublicKeyPrefix) {
                 return try buffer.readECDSAP521PublicKey()
-            } else {
-                // We don't know this public key type. Maybe the certified keys do.
-                return try buffer.readCertifiedKeyWithoutKeyPrefix(keyIdentifierBytes).map(NIOSSHPublicKey.init)
             }
+
+            #if canImport(_CryptoExtras)
+            if keyIdentifierBytes.elementsEqual(NIOSSHPublicKey.rsaPublicKeyPrefix) {
+                return try buffer.readRSAPublicKey()
+            }
+            #endif
+
+            // We don't know this public key type. Maybe the certified keys do.
+            return try buffer.readCertifiedKeyWithoutKeyPrefix(keyIdentifierBytes).map(NIOSSHPublicKey.init)
         }
     }
 
@@ -348,6 +422,16 @@ extension ByteBuffer {
         writtenBytes += self.writeSSHString(baseKey.x963Representation)
         return writtenBytes
     }
+
+    #if canImport(_CryptoExtras)
+    private mutating func writeRSAPublicKey(baseKey: _RSA.Signing.PublicKey) -> Int {
+        var writtenBytes = 0
+        let primitives = try! baseKey.getKeyPrimitives()
+        writtenBytes += self.writePositiveMPInt(primitives.publicExponent)
+        writtenBytes += self.writePositiveMPInt(primitives.modulus)
+        return writtenBytes
+    }
+    #endif
 
     /// A helper function that reads an Ed25519 public key.
     ///
@@ -435,6 +519,20 @@ extension ByteBuffer {
         return NIOSSHPublicKey(backingKey: .ecdsaP521(key))
     }
 
+    #if canImport(_CryptoExtras)
+    private mutating func readRSAPublicKey() throws -> NIOSSHPublicKey? {
+        guard let eBytes = self.readSSHString(), let nBytes = self.readSSHString() else {
+            return nil
+        }
+
+        let key = try _RSA.Signing.PublicKey(
+            n: Self.normalizedMPIntData(nBytes),
+            e: Self.normalizedMPIntData(eBytes)
+        )
+        return NIOSSHPublicKey(backingKey: .rsaPublicKey(key))
+    }
+    #endif
+
     /// A helper function for complex readers that will reset a buffer on nil or on error, as though the read
     /// never occurred.
     internal mutating func rewindOnNilOrError<T>(_ body: (inout ByteBuffer) throws -> T?) rethrows -> T? {
@@ -456,6 +554,18 @@ extension ByteBuffer {
     }
 }
 
+extension ByteBuffer {
+    #if canImport(_CryptoExtras)
+    fileprivate static func normalizedMPIntData(_ bytes: ByteBuffer) -> Data {
+        var view = bytes.readableBytesView
+        if view.first == 0 {
+            view = view.dropFirst()
+        }
+        return Data(view)
+    }
+    #endif
+}
+
 extension String {
     /// Takes a NIOSSHPublicKey and turns it into OpenSSH public key string in the format of "algorithm-id base64-encoded-key"
     public init(openSSHPublicKey: NIOSSHPublicKey) {
@@ -466,3 +576,16 @@ extension String {
         self = publicKeyString
     }
 }
+
+#if canImport(_CryptoExtras)
+extension NIOSSHSignature.BackingSignature.RawBytes {
+    fileprivate var rawBytes: Data {
+        switch self {
+        case .byteBuffer(let buffer):
+            return Data(buffer.readableBytesView)
+        case .data(let data):
+            return data
+        }
+    }
+}
+#endif

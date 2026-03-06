@@ -348,6 +348,9 @@ extension NIOSSHCertifiedPublicKey {
     static let p521KeyPrefix = "ecdsa-sha2-nistp521-cert-v01@openssh.com".utf8
 
     static let ed25519KeyPrefix = "ssh-ed25519-cert-v01@openssh.com".utf8
+    #if canImport(_CryptoExtras)
+    static let rsaKeyPrefix = "ssh-rsa-cert-v01@openssh.com".utf8
+    #endif
 
     internal var keyPrefix: String.UTF8View {
         switch self.key.backingKey {
@@ -359,6 +362,10 @@ extension NIOSSHCertifiedPublicKey {
             return Self.p384KeyPrefix
         case .ecdsaP521:
             return Self.p521KeyPrefix
+        #if canImport(_CryptoExtras)
+        case .rsaPublicKey:
+            return Self.rsaKeyPrefix
+        #endif
         case .certified:
             preconditionFailure("base key cannot be certified")
         }
@@ -386,9 +393,13 @@ extension NIOSSHCertifiedPublicKey {
             return NIOSSHPublicKey.ecdsaP384PublicKeyPrefix
         } else if prefix.elementsEqual(Self.p521KeyPrefix) {
             return NIOSSHPublicKey.ecdsaP521PublicKeyPrefix
-        } else {
-            throw NIOSSHError.unknownPublicKey(algorithm: String(decoding: prefix, as: UTF8.self))
         }
+        #if canImport(_CryptoExtras)
+        if prefix.elementsEqual(Self.rsaKeyPrefix) {
+            return NIOSSHPublicKey.rsaPublicKeyPrefix
+        }
+        #endif
+        throw NIOSSHError.unknownPublicKey(algorithm: String(decoding: prefix, as: UTF8.self))
     }
 }
 

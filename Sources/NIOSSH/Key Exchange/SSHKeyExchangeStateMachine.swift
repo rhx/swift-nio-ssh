@@ -289,7 +289,10 @@ struct SSHKeyExchangeStateMachine {
         case .keyExchangeInitSent(exchange: var exchanger, let negotiated):
             switch self.role {
             case .client:
-                guard message.hostKey.keyPrefix.elementsEqual(negotiated.negotiatedHostKeyAlgorithm.utf8) else {
+                guard Self.hostKeyMatchesNegotiatedAlgorithm(
+                    key: message.hostKey,
+                    algorithm: negotiated.negotiatedHostKeyAlgorithm
+                ) else {
                     throw NIOSSHError.invalidHostKeyForKeyExchange(
                         expected: negotiated.negotiatedHostKeyAlgorithm,
                         got: message.hostKey.keyPrefix
@@ -601,9 +604,29 @@ extension SSHKeyExchangeStateMachine {
     }
 
     /// All known host key algorithms.
-    static let supportedServerHostKeyAlgorithms: [Substring] = [
-        "ssh-ed25519", "ecdsa-sha2-nistp384", "ecdsa-sha2-nistp256", "ecdsa-sha2-nistp521",
-    ]
+    static var supportedServerHostKeyAlgorithms: [Substring] {
+        var algorithms: [Substring] = [
+            "ssh-ed25519", "ecdsa-sha2-nistp384", "ecdsa-sha2-nistp256", "ecdsa-sha2-nistp521",
+        ]
+        #if canImport(_CryptoExtras)
+        algorithms += ["rsa-sha2-512", "rsa-sha2-256"]
+        #endif
+        return algorithms
+    }
+
+    private static func hostKeyMatchesNegotiatedAlgorithm(key: NIOSSHPublicKey, algorithm: Substring) -> Bool {
+        if key.keyPrefix.elementsEqual(algorithm.utf8) {
+            return true
+        }
+        #if canImport(_CryptoExtras)
+        if key.keyPrefix.elementsEqual(NIOSSHPublicKey.rsaPublicKeyPrefix),
+            (algorithm == "rsa-sha2-256" || algorithm == "rsa-sha2-512")
+        {
+            return true
+        }
+        #endif
+        return false
+    }
 }
 
 extension SSHKeyExchangeStateMachine {
