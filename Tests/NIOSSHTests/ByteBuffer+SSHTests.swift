@@ -13,6 +13,9 @@
 //===----------------------------------------------------------------------===//
 
 import Crypto
+#if canImport(_CryptoExtras)
+import _CryptoExtras
+#endif
 import NIOCore
 import XCTest
 
@@ -290,6 +293,42 @@ final class ByteBufferSSHTests: XCTestCase {
 
         XCTAssertNoThrow(XCTAssertNotNil(try buffer.readSSHSignature()))
     }
+
+    #if canImport(_CryptoExtras)
+    func testReadingRSASHA256SignaturesFromBuffers() throws {
+        var buffer = ByteBufferAllocator().buffer(capacity: 1024)
+        let key = try assertNoThrowWithValue(NIOSSHPrivateKey(rsaKey: .init(keySize: .bits2048)))
+        let signature = try assertNoThrowWithValue(key.sign(digest: SHA256.hash(data: Array("hello, world!".utf8))))
+
+        buffer.writeSSHSignature(signature)
+
+        for sliceLength in 0..<buffer.readableBytes {
+            var slice = buffer.getSlice(at: buffer.readerIndex, length: sliceLength)!
+            XCTAssertNoThrow(XCTAssertNil(try slice.readSSHSignature()))
+            XCTAssertEqual(slice.readerIndex, 0)
+            XCTAssertEqual(slice.writerIndex, sliceLength)
+        }
+
+        XCTAssertNoThrow(XCTAssertNotNil(try buffer.readSSHSignature()))
+    }
+
+    func testReadingRSASHA512SignaturesFromBuffers() throws {
+        var buffer = ByteBufferAllocator().buffer(capacity: 1024)
+        let key = try assertNoThrowWithValue(NIOSSHPrivateKey(rsaKey: .init(keySize: .bits2048)))
+        let signature = try assertNoThrowWithValue(key.sign(digest: SHA512.hash(data: Array("hello, world!".utf8))))
+
+        buffer.writeSSHSignature(signature)
+
+        for sliceLength in 0..<buffer.readableBytes {
+            var slice = buffer.getSlice(at: buffer.readerIndex, length: sliceLength)!
+            XCTAssertNoThrow(XCTAssertNil(try slice.readSSHSignature()))
+            XCTAssertEqual(slice.readerIndex, 0)
+            XCTAssertEqual(slice.writerIndex, sliceLength)
+        }
+
+        XCTAssertNoThrow(XCTAssertNotNil(try buffer.readSSHSignature()))
+    }
+    #endif
 
     func testReadingEd25519PublicKeysFromBuffers() throws {
         var buffer = ByteBufferAllocator().buffer(capacity: 1024)

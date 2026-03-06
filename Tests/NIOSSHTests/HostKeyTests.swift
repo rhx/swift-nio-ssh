@@ -13,6 +13,9 @@
 //===----------------------------------------------------------------------===//
 
 import Crypto
+#if canImport(_CryptoExtras)
+import _CryptoExtras
+#endif
 import NIOCore
 import NIOFoundationCompat
 import XCTest
@@ -91,6 +94,40 @@ final class HostKeyTests: XCTestCase {
         let newSignature = try assertNoThrowWithValue(buffer.readSSHSignature()!)
         XCTAssertNoThrow(XCTAssertTrue(sshKey.publicKey.isValidSignature(newSignature, for: digest)))
     }
+
+    #if canImport(_CryptoExtras)
+    func testBasicRSASHA256SigningFlow() throws {
+        let rsaKey = try assertNoThrowWithValue(_RSA.Signing.PrivateKey(keySize: .bits2048))
+        let sshKey = NIOSSHPrivateKey(rsaKey: rsaKey)
+
+        let digest = SHA256.hash(data: Array("hello, world!".utf8))
+        let signature = try assertNoThrowWithValue(sshKey.sign(digest: digest))
+
+        XCTAssertNoThrow(XCTAssertTrue(sshKey.publicKey.isValidSignature(signature, for: digest)))
+
+        var buffer = ByteBufferAllocator().buffer(capacity: 1024)
+        buffer.writeSSHSignature(signature)
+
+        let newSignature = try assertNoThrowWithValue(buffer.readSSHSignature()!)
+        XCTAssertNoThrow(XCTAssertTrue(sshKey.publicKey.isValidSignature(newSignature, for: digest)))
+    }
+
+    func testBasicRSASHA512SigningFlow() throws {
+        let rsaKey = try assertNoThrowWithValue(_RSA.Signing.PrivateKey(keySize: .bits2048))
+        let sshKey = NIOSSHPrivateKey(rsaKey: rsaKey)
+
+        let digest = SHA512.hash(data: Array("hello, world!".utf8))
+        let signature = try assertNoThrowWithValue(sshKey.sign(digest: digest))
+
+        XCTAssertNoThrow(XCTAssertTrue(sshKey.publicKey.isValidSignature(signature, for: digest)))
+
+        var buffer = ByteBufferAllocator().buffer(capacity: 1024)
+        buffer.writeSSHSignature(signature)
+
+        let newSignature = try assertNoThrowWithValue(buffer.readSSHSignature()!)
+        XCTAssertNoThrow(XCTAssertTrue(sshKey.publicKey.isValidSignature(newSignature, for: digest)))
+    }
+    #endif
 
     func testEd25519FailsVerificationWithDifferentKeys() throws {
         let edKey = Curve25519.Signing.PrivateKey()
@@ -335,6 +372,14 @@ final class HostKeyTests: XCTestCase {
             try self.roundTripKey(keyData: keyData, label: "ecdsa-sha2-nistp521", comment: " lukasa@MacBook-Pro.local")
         )
     }
+
+    #if canImport(_CryptoExtras)
+    func testLoadingRSAKeyFromFileRoundTrips() throws {
+        let key = try assertNoThrowWithValue(NIOSSHPrivateKey(rsaKey: .init(keySize: .bits2048)))
+        let keyData = String(openSSHPublicKey: key.publicKey)
+        XCTAssertNoThrow(try self.roundTripKey(keyData: keyData, label: "ssh-rsa", comment: ""))
+    }
+    #endif
 
     func testMissingCommentIsTolerated() throws {
         let keyData = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIJfkNV4OS33ImTXvorZr72q4v5XhVEQKfvqsxOEJ/XaR"

@@ -1,4 +1,4 @@
-// swift-tools-version:6.0
+// swift-tools-version:6.1
 //===----------------------------------------------------------------------===//
 //
 // This source file is part of the SwiftNIO open source project
@@ -36,6 +36,13 @@ let package = Package(
     products: [
         .library(name: "NIOSSH", targets: ["NIOSSH"])
     ],
+    traits: [
+        .default(enabledTraits: []),
+        .trait(
+            name: "RSA",
+            description: "Enable RSA key parsing and rsa-sha2-* signature support."
+        ),
+    ],
     dependencies: [
         .package(url: "https://github.com/apple/swift-nio.git", from: "2.81.0"),
         .package(url: "https://github.com/apple/swift-crypto.git", "1.0.0"..<"4.0.0"),
@@ -49,7 +56,7 @@ let package = Package(
                 .product(name: "NIOConcurrencyHelpers", package: "swift-nio"),
                 .product(name: "NIOFoundationCompat", package: "swift-nio"),
                 .product(name: "Crypto", package: "swift-crypto"),
-                .product(name: "_CryptoExtras", package: "swift-crypto"),
+                .product(name: "_CryptoExtras", package: "swift-crypto", condition: .when(traits: ["RSA"])),
                 .product(name: "Atomics", package: "swift-atomics"),
             ],
             swiftSettings: swiftSettings
@@ -92,7 +99,7 @@ let package = Package(
                 .product(name: "NIOCore", package: "swift-nio"),
                 .product(name: "NIOEmbedded", package: "swift-nio"),
                 .product(name: "NIOFoundationCompat", package: "swift-nio"),
-                .product(name: "_CryptoExtras", package: "swift-crypto"),
+                .product(name: "_CryptoExtras", package: "swift-crypto", condition: .when(traits: ["RSA"])),
             ],
             swiftSettings: swiftSettings
         ),
