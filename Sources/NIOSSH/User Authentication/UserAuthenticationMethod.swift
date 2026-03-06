@@ -249,7 +249,15 @@ extension SSHMessage.UserAuthRequestMessage {
                 publicKey: privateKeyRequest.publicKey
             )
             let signature = try privateKeyRequest.privateKey.sign(dataToSign)
-            self.method = .publicKey(.known(key: privateKeyRequest.publicKey, signature: signature))
+            self.method = .publicKey(
+                .known(
+                    key: privateKeyRequest.publicKey,
+                    signature: signature,
+                    signatureAlgorithm: Substring(
+                        String(decoding: signature.backingSignature.signaturePrefix, as: UTF8.self)
+                    )
+                )
+            )
         case .password(let passwordRequest):
             self.method = .password(passwordRequest.password)
         case .hostBased:

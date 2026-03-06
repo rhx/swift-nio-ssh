@@ -256,9 +256,13 @@ final class HostKeyTests: XCTestCase {
         var buffer = ByteBufferAllocator().buffer(capacity: 1024)
         buffer.writeSSHString("ssh-rsa".utf8)
 
+        #if canImport(_CryptoExtras)
+        XCTAssertNil(try buffer.readSSHHostKey())
+        #else
         XCTAssertThrowsError(try buffer.readSSHHostKey()) { error in
             XCTAssertEqual((error as? NIOSSHError).map { $0.type }, .unknownPublicKey)
         }
+        #endif
     }
 
     func testInvalidDomainParametersForECDSAP256() throws {

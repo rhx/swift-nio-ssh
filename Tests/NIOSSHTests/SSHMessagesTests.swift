@@ -220,7 +220,15 @@ final class SSHMessagesTests: XCTestCase {
             .init(
                 username: "test",
                 service: "ssh-connection",
-                method: .publicKey(.known(key: key.publicKey, signature: nil))
+                method: .publicKey(
+                    .known(
+                        key: key.publicKey,
+                        signature: nil,
+                        signatureAlgorithm: Substring(
+                            String(decoding: key.publicKey.preferredSignatureAlgorithm, as: UTF8.self)
+                        )
+                    )
+                )
             )
         )
         buffer.writeSSHMessage(message)
@@ -238,7 +246,15 @@ final class SSHMessagesTests: XCTestCase {
             .init(
                 username: "test",
                 service: "ssh-connection",
-                method: .publicKey(.known(key: key.publicKey, signature: signature))
+                method: .publicKey(
+                    .known(
+                        key: key.publicKey,
+                        signature: signature,
+                        signatureAlgorithm: Substring(
+                            String(decoding: signature.backingSignature.signaturePrefix, as: UTF8.self)
+                        )
+                    )
+                )
             )
         )
         buffer.writeSSHMessage(message)
@@ -339,7 +355,12 @@ final class SSHMessagesTests: XCTestCase {
     func testUserAuthPKOKP256() throws {
         var buffer = ByteBufferAllocator().buffer(capacity: 1024)
         let key = NIOSSHPrivateKey(p256Key: .init())
-        let message = SSHMessage.userAuthPKOK(.init(key: key.publicKey))
+        let message = SSHMessage.userAuthPKOK(
+            .init(
+                key: key.publicKey,
+                signatureAlgorithm: Substring(String(decoding: key.publicKey.preferredSignatureAlgorithm, as: UTF8.self))
+            )
+        )
 
         buffer.writeSSHMessage(message)
         XCTAssertEqual(try buffer.readSSHMessage(), message)
@@ -350,7 +371,12 @@ final class SSHMessagesTests: XCTestCase {
     func testUserAuthPKOKP384() throws {
         var buffer = ByteBufferAllocator().buffer(capacity: 1024)
         let key = NIOSSHPrivateKey(p384Key: .init())
-        let message = SSHMessage.userAuthPKOK(.init(key: key.publicKey))
+        let message = SSHMessage.userAuthPKOK(
+            .init(
+                key: key.publicKey,
+                signatureAlgorithm: Substring(String(decoding: key.publicKey.preferredSignatureAlgorithm, as: UTF8.self))
+            )
+        )
 
         buffer.writeSSHMessage(message)
         XCTAssertEqual(try buffer.readSSHMessage(), message)
@@ -361,7 +387,12 @@ final class SSHMessagesTests: XCTestCase {
     func testUserAuthPKOKP521() throws {
         var buffer = ByteBufferAllocator().buffer(capacity: 1024)
         let key = NIOSSHPrivateKey(p521Key: .init())
-        let message = SSHMessage.userAuthPKOK(.init(key: key.publicKey))
+        let message = SSHMessage.userAuthPKOK(
+            .init(
+                key: key.publicKey,
+                signatureAlgorithm: Substring(String(decoding: key.publicKey.preferredSignatureAlgorithm, as: UTF8.self))
+            )
+        )
 
         buffer.writeSSHMessage(message)
         XCTAssertEqual(try buffer.readSSHMessage(), message)

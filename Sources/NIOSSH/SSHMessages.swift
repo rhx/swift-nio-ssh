@@ -149,7 +149,7 @@ extension SSHMessage {
         }
 
         enum PublicKeyAuthType: Equatable {
-            case known(key: NIOSSHPublicKey, signature: NIOSSHSignature?)
+            case known(key: NIOSSHPublicKey, signature: NIOSSHSignature?, signatureAlgorithm: Substring)
             case unknown
         }
 
@@ -186,6 +186,7 @@ extension SSHMessage {
         static let id: UInt8 = 60
 
         var key: NIOSSHPublicKey
+        var signatureAlgorithm: Substring
     }
 
     struct GlobalRequestMessage: Equatable {
@@ -694,7 +695,8 @@ extension ByteBuffer {
                         return nil
                     }
 
-                    guard algorithmName.readableBytesView.elementsEqual(publicKey.keyPrefix) else {
+                    let algorithm = Substring(String(decoding: algorithmName.readableBytesView, as: UTF8.self))
+                    guard Self.algorithmMatchesKey(algorithm: algorithm, key: publicKey) else {
                         throw NIOSSHError.invalidSSHMessage(reason: "algorithm and key mismatch in user auth request")
                     }
 
@@ -705,9 +707,9 @@ extension ByteBuffer {
                             return nil
                         }
 
-                        method = .publicKey(.known(key: publicKey, signature: signature))
+                        method = .publicKey(.known(key: publicKey, signature: signature, signatureAlgorithm: algorithm))
                     } else {
-                        method = .publicKey(.known(key: publicKey, signature: nil))
+                        method = .publicKey(.known(key: publicKey, signature: nil, signatureAlgorithm: algorithm))
                     }
                 } else {
                     // This is not an algorithm we know. Consume the signature if we're expecting it.
@@ -771,11 +773,12 @@ extension ByteBuffer {
             }
 
             // Validate consistency here.
-            guard publicKeyType.readableBytesView.elementsEqual(publicKey.keyPrefix) else {
+            let algorithm = Substring(String(decoding: publicKeyType.readableBytesView, as: UTF8.self))
+            guard Self.algorithmMatchesKey(algorithm: algorithm, key: publicKey) else {
                 throw NIOSSHError.invalidSSHMessage(reason: "inconsistent key type")
             }
 
-            return .init(key: publicKey)
+            return .init(key: publicKey, signatureAlgorithm: algorithm)
         }
     }
 
@@ -1370,10 +1373,14 @@ extension ByteBuffer {
             writtenBytes += self.writeSSHString("password".utf8)
             writtenBytes += self.writeSSHBoolean(false)
             writtenBytes += self.writeSSHString(password.utf8)
-        case .publicKey(.known(key: let key, signature: let signature)):
+        case .publicKey(.known(key: let key, signature: let signature, signatureAlgorithm: let signatureAlgorithm)):
             writtenBytes += self.writeSSHString("publickey".utf8)
             writtenBytes += self.writeSSHBoolean(signature != nil)
-            writtenBytes += self.writeSSHString(key.keyPrefix)
+            if let signature = signature {
+                writtenBytes += self.writeSSHString(signature.backingSignature.signaturePrefix)
+            } else {
+                writtenBytes += self.writeSSHString(signatureAlgorithm.utf8)
+            }
             writtenBytes += self.writeCompositeSSHString { buffer in
                 buffer.writeSSHHostKey(key)
             }
@@ -1407,7 +1414,7 @@ extension ByteBuffer {
 
     mutating func writeUserAuthPKOKMessage(_ message: SSHMessage.UserAuthPKOKMessage) -> Int {
         var writtenBytes = 0
-        writtenBytes += self.writeSSHString(message.key.keyPrefix)
+        writtenBytes += self.writeSSHString(message.signatureAlgorithm.utf8)
         writtenBytes += self.writeCompositeSSHString { buffer in
             buffer.writeSSHHostKey(message.key)
         }
@@ -1627,6 +1634,20 @@ extension ByteBuffer {
         var writtenBytes = 0
         writtenBytes += self.writeInteger(message.recipientChannel)
         return writtenBytes
+    }
+}
+
+extension ByteBuffer {
+    fileprivate static func algorithmMatchesKey(algorithm: Substring, key: NIOSSHPublicKey) -> Bool {
+        if key.keyPrefix.elementsEqual(algorithm.utf8) {
+            return true
+        }
+        #if canImport(_CryptoExtras)
+        if algorithm == "rsa-sha2-256" || algorithm == "rsa-sha2-512" {
+            return key.keyPrefix.elementsEqual(NIOSSHPublicKey.rsaPublicKeyPrefix)
+        }
+        #endif
+        return false
     }
 }
 
