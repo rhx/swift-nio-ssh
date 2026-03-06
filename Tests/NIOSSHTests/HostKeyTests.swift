@@ -13,7 +13,7 @@
 //===----------------------------------------------------------------------===//
 
 import Crypto
-#if canImport(_CryptoExtras)
+#if NIOSSH_RSA
 import _CryptoExtras
 #endif
 import NIOCore
@@ -95,7 +95,7 @@ final class HostKeyTests: XCTestCase {
         XCTAssertNoThrow(XCTAssertTrue(sshKey.publicKey.isValidSignature(newSignature, for: digest)))
     }
 
-    #if canImport(_CryptoExtras)
+    #if NIOSSH_RSA
     func testBasicRSASHA256SigningFlow() throws {
         let rsaKey = try assertNoThrowWithValue(_RSA.Signing.PrivateKey(keySize: .bits2048))
         let sshKey = NIOSSHPrivateKey(rsaKey: rsaKey)
@@ -293,7 +293,7 @@ final class HostKeyTests: XCTestCase {
         var buffer = ByteBufferAllocator().buffer(capacity: 1024)
         buffer.writeSSHString("ssh-rsa".utf8)
 
-        #if canImport(_CryptoExtras)
+        #if NIOSSH_RSA
         XCTAssertNil(try buffer.readSSHHostKey())
         #else
         XCTAssertThrowsError(try buffer.readSSHHostKey()) { error in
@@ -373,7 +373,7 @@ final class HostKeyTests: XCTestCase {
         )
     }
 
-    #if canImport(_CryptoExtras)
+    #if NIOSSH_RSA
     func testLoadingRSAKeyFromFileRoundTrips() throws {
         let key = try assertNoThrowWithValue(NIOSSHPrivateKey(rsaKey: .init(keySize: .bits2048)))
         let keyData = String(openSSHPublicKey: key.publicKey)

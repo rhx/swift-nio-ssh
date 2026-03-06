@@ -18,6 +18,9 @@ import PackageDescription
 let strictConcurrencyDevelopment = false
 
 var swiftSettings: [SwiftSetting] = []
+let rsaSwiftSettings: [SwiftSetting] = [
+    .define("NIOSSH_RSA", .when(traits: ["RSA"]))
+]
 
 if strictConcurrencyDevelopment {
     // -warnings-as-errors here is a workaround so that IDE-based development can
@@ -59,7 +62,7 @@ let package = Package(
                 .product(name: "_CryptoExtras", package: "swift-crypto", condition: .when(traits: ["RSA"])),
                 .product(name: "Atomics", package: "swift-atomics"),
             ],
-            swiftSettings: swiftSettings
+            swiftSettings: swiftSettings + rsaSwiftSettings
         ),
         .executableTarget(
             name: "NIOSSHClient",
@@ -101,7 +104,7 @@ let package = Package(
                 .product(name: "NIOFoundationCompat", package: "swift-nio"),
                 .product(name: "_CryptoExtras", package: "swift-crypto", condition: .when(traits: ["RSA"])),
             ],
-            swiftSettings: swiftSettings
+            swiftSettings: swiftSettings + rsaSwiftSettings
         ),
     ]
 )

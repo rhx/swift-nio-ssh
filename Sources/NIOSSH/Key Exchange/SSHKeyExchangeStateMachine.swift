@@ -608,7 +608,7 @@ extension SSHKeyExchangeStateMachine {
         var algorithms: [Substring] = [
             "ssh-ed25519", "ecdsa-sha2-nistp384", "ecdsa-sha2-nistp256", "ecdsa-sha2-nistp521",
         ]
-        #if canImport(_CryptoExtras)
+        #if NIOSSH_RSA
         algorithms += ["rsa-sha2-512", "rsa-sha2-256"]
         #endif
         return algorithms
@@ -618,7 +618,7 @@ extension SSHKeyExchangeStateMachine {
         if key.keyPrefix.elementsEqual(algorithm.utf8) {
             return true
         }
-        #if canImport(_CryptoExtras)
+        #if NIOSSH_RSA
         if key.keyPrefix.elementsEqual(NIOSSHPublicKey.rsaPublicKeyPrefix),
             (algorithm == "rsa-sha2-256" || algorithm == "rsa-sha2-512")
         {

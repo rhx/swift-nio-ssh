@@ -13,7 +13,7 @@
 //===----------------------------------------------------------------------===//
 
 @preconcurrency import Crypto
-#if canImport(_CryptoExtras)
+#if NIOSSH_RSA
 import _CryptoExtras
 #endif
 import Foundation
@@ -45,7 +45,7 @@ extension NIOSSHSignature {
 
         case ecdsaP521(P521.Signing.ECDSASignature)
 
-        #if canImport(_CryptoExtras)
+        #if NIOSSH_RSA
         case rsaSHA256(RawBytes)
         case rsaSHA512(RawBytes)
         #endif
@@ -65,7 +65,7 @@ extension NIOSSHSignature {
                 return NIOSSHSignature.ecdsaP384SignaturePrefix
             case .ecdsaP521:
                 return NIOSSHSignature.ecdsaP521SignaturePrefix
-            #if canImport(_CryptoExtras)
+            #if NIOSSH_RSA
             case .rsaSHA256:
                 return NIOSSHSignature.rsaSHA256SignaturePrefix
             case .rsaSHA512:
@@ -87,7 +87,7 @@ extension NIOSSHSignature {
     /// The prefix of a P521 ECDSA public key.
     fileprivate static let ecdsaP521SignaturePrefix = "ecdsa-sha2-nistp521".utf8
 
-    #if canImport(_CryptoExtras)
+    #if NIOSSH_RSA
     /// The prefix of an RSA SHA-256 signature.
     fileprivate static let rsaSHA256SignaturePrefix = "rsa-sha2-256".utf8
 
@@ -128,7 +128,7 @@ extension NIOSSHSignature.BackingSignature: Equatable {
             return lhs.rawRepresentation == rhs.rawRepresentation
         case (.ecdsaP521(let lhs), .ecdsaP521(let rhs)):
             return lhs.rawRepresentation == rhs.rawRepresentation
-        #if canImport(_CryptoExtras)
+        #if NIOSSH_RSA
         case (.rsaSHA256(let lhs), .rsaSHA256(let rhs)):
             return lhs == rhs
         case (.rsaSHA512(let lhs), .rsaSHA512(let rhs)):
@@ -155,7 +155,7 @@ extension NIOSSHSignature.BackingSignature: Hashable {
         case .ecdsaP521(let sig):
             hasher.combine(3)
             hasher.combine(sig.rawRepresentation)
-        #if canImport(_CryptoExtras)
+        #if NIOSSH_RSA
         case .rsaSHA256(let bytes):
             hasher.combine(4)
             hasher.combine(bytes)
@@ -180,7 +180,7 @@ extension ByteBuffer {
             return self.writeECDSAP384Signature(baseSignature: sig)
         case .ecdsaP521(let sig):
             return self.writeECDSAP521Signature(baseSignature: sig)
-        #if canImport(_CryptoExtras)
+        #if NIOSSH_RSA
         case .rsaSHA256(let sig):
             return self.writeRSASignature(prefix: NIOSSHSignature.rsaSHA256SignaturePrefix, signatureBytes: sig)
         case .rsaSHA512(let sig):
@@ -264,7 +264,7 @@ extension ByteBuffer {
         return writtenLength
     }
 
-    #if canImport(_CryptoExtras)
+    #if NIOSSH_RSA
     private mutating func writeRSASignature(
         prefix: String.UTF8View,
         signatureBytes: NIOSSHSignature.BackingSignature.RawBytes
@@ -299,7 +299,7 @@ extension ByteBuffer {
                 return try buffer.readECDSAP521Signature()
             }
 
-            #if canImport(_CryptoExtras)
+            #if NIOSSH_RSA
             if bytesView.elementsEqual(NIOSSHSignature.rsaSHA256SignaturePrefix) {
                 return try buffer.readRSASHA256Signature()
             } else if bytesView.elementsEqual(NIOSSHSignature.rsaSHA512SignaturePrefix) {
@@ -393,7 +393,7 @@ extension ByteBuffer {
         )
     }
 
-    #if canImport(_CryptoExtras)
+    #if NIOSSH_RSA
     private mutating func readRSASHA256Signature() throws -> NIOSSHSignature? {
         guard let sigBytes = self.readSSHString() else {
             return nil
@@ -536,7 +536,7 @@ extension NIOSSHSignature {
         return NIOSSHSignature(backingSignature: .ecdsaP521(ecdsaSignature))
     }
 
-    #if canImport(_CryptoExtras)
+    #if NIOSSH_RSA
     /// Create an RSA SHA-256 signature from raw signature data.
     public static func rsaSHA256(signature: Data) -> NIOSSHSignature {
         return NIOSSHSignature(backingSignature: .rsaSHA256(.data(signature)))

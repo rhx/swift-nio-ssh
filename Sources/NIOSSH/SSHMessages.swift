@@ -1642,7 +1642,7 @@ extension ByteBuffer {
         if key.keyPrefix.elementsEqual(algorithm.utf8) {
             return true
         }
-        #if canImport(_CryptoExtras)
+        #if NIOSSH_RSA
         if algorithm == "rsa-sha2-256" || algorithm == "rsa-sha2-512" {
             return key.keyPrefix.elementsEqual(NIOSSHPublicKey.rsaPublicKeyPrefix)
         }

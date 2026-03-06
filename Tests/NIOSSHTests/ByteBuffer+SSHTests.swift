@@ -13,7 +13,7 @@
 //===----------------------------------------------------------------------===//
 
 import Crypto
-#if canImport(_CryptoExtras)
+#if NIOSSH_RSA
 import _CryptoExtras
 #endif
 import NIOCore
@@ -294,7 +294,7 @@ final class ByteBufferSSHTests: XCTestCase {
         XCTAssertNoThrow(XCTAssertNotNil(try buffer.readSSHSignature()))
     }
 
-    #if canImport(_CryptoExtras)
+    #if NIOSSH_RSA
     func testReadingRSASHA256SignaturesFromBuffers() throws {
         var buffer = ByteBufferAllocator().buffer(capacity: 1024)
         let key = try assertNoThrowWithValue(NIOSSHPrivateKey(rsaKey: .init(keySize: .bits2048)))
