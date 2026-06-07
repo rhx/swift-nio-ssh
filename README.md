@@ -22,7 +22,8 @@ SwiftNIO SSH        | Minimum Swift Version
 `0.9.0  ..< 0.9.2`  | 5.8
 `0.9.2  ..< 0.10.0` | 5.9
 `0.10.0 ... 0.12.0` | 5.10
-`0.12.0 ...`        | 6.0
+`0.12.0 ..< 0.13.0` | 6.0
+`0.13.0 ..<`        | 6.1
 
 ## What does SwiftNIO SSH support?
 
@@ -127,6 +128,22 @@ User authentication is a vital part of SSH. To manage it, SwiftNIO SSH uses a pa
 The client protocol is straightforward: SwiftNIO SSH will invoke the method `nextAuthenticationType(availableMethods:nextChallengePromise:)` on the delegate. The `availableMethods` will be an instance of `NIOSSHAvailableUserAuthenticationMethods` communicating which authentication methods the server has suggested will be acceptable. The delegate can then complete `nextChallengePromise` with either a new authentication request, or with `nil` to indicate that the client has run out of things to try.
 
 The server protocol is more complex. The delegate must provide a `supportedAuthenticationMethods` property that communicates which authentication methods are supported by the delegate. Then, each time the client sends a user auth request, the `requestReceived(request:responsePromise:)` method will be invoked. This may be invoked multiple times in parallel, as clients are allowed to issue auth requests in parallel. The `responsePromise` should be succeeded with the result of the authentication. There are three results: `.success` and `.failure` are straightforward, but in principle the server can require multiple challenges using `.partialSuccess(remainingMethods:)`.
+
+#### Delegated signing (SSH agents and hardware keys)
+
+For public-key user authentication, SwiftNIO SSH can delegate the signing operation to an external system, such as an SSH agent, a hardware security module, or a smart card, so that private key material never has to be loaded into the process. Construct a `NIOSSHPrivateKey` from the corresponding public key plus a signing callback. SwiftNIO SSH invokes the callback with the raw signable payload bytes and expects a fully formed `NIOSSHSignature` in return.
+
+```swift
+let publicKey: NIOSSHPublicKey = // ... the public key whose private half lives in the agent
+
+let key = NIOSSHPrivateKey(publicKey: publicKey) { payload in
+    // Forward `payload` to the agent and convert its reply into a NIOSSHSignature.
+    let rawSignature = try agent.sign(Data(payload))
+    return .ed25519(signature: rawSignature)
+}
+```
+
+`NIOSSHSignature` provides constructors for each supported algorithm (`.ed25519(signature:)`, `.ecdsaP256(signature:)`, `.ecdsaP384(signature:)`, and `.ecdsaP521(signature:)`) so the callback can wrap the raw signature bytes returned by the external signer. The callback is `@Sendable` and is invoked on a NIO event-loop thread, so it must not block.
 
 ### Direct Port Forwarding
 
