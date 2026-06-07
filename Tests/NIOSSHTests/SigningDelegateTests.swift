@@ -13,6 +13,9 @@
 //===----------------------------------------------------------------------===//
 
 import Crypto
+#if NIOSSH_RSA
+import _CryptoExtras
+#endif
 import NIOCore
 import NIOFoundationCompat
 import XCTest
@@ -119,6 +122,54 @@ final class SigningDelegateTests: XCTestCase {
         let newSignature = try assertNoThrowWithValue(buffer.readSSHSignature()!)
         XCTAssertNoThrow(XCTAssertTrue(publicKey.isValidSignature(newSignature, for: payload)))
     }
+
+    #if NIOSSH_RSA
+    func testBasicRSASHA256SigningDelegateFlow() throws {
+        let rsaKey = try assertNoThrowWithValue(_RSA.Signing.PrivateKey(keySize: .bits2048))
+        let publicKey = NIOSSHPrivateKey(rsaKey: rsaKey).publicKey
+
+        let payload = self.makePayload(for: publicKey)
+        let digest = SHA256.hash(data: payload.bytes.readableBytesView)
+        let rawSignature = try rsaKey.signature(for: digest, padding: .insecurePKCS1v1_5)
+        let delegateSignature = NIOSSHSignature.rsaSHA256(signature: Data(rawSignature.rawRepresentation))
+        let sshKey = NIOSSHPrivateKey(publicKey: publicKey) { _ in delegateSignature }
+
+        let signature = try assertNoThrowWithValue(sshKey.sign(payload))
+
+        // Naturally, this should verify.
+        XCTAssertNoThrow(XCTAssertTrue(publicKey.isValidSignature(signature, for: payload)))
+
+        // Now let's try round-tripping through bytebuffer.
+        var buffer = ByteBufferAllocator().buffer(capacity: 1024)
+        buffer.writeSSHSignature(signature)
+
+        let newSignature = try assertNoThrowWithValue(buffer.readSSHSignature()!)
+        XCTAssertNoThrow(XCTAssertTrue(publicKey.isValidSignature(newSignature, for: payload)))
+    }
+
+    func testBasicRSASHA512SigningDelegateFlow() throws {
+        let rsaKey = try assertNoThrowWithValue(_RSA.Signing.PrivateKey(keySize: .bits2048))
+        let publicKey = NIOSSHPrivateKey(rsaKey: rsaKey).publicKey
+
+        let payload = self.makePayload(for: publicKey)
+        let digest = SHA512.hash(data: payload.bytes.readableBytesView)
+        let rawSignature = try rsaKey.signature(for: digest, padding: .insecurePKCS1v1_5)
+        let delegateSignature = NIOSSHSignature.rsaSHA512(signature: Data(rawSignature.rawRepresentation))
+        let sshKey = NIOSSHPrivateKey(publicKey: publicKey) { _ in delegateSignature }
+
+        let signature = try assertNoThrowWithValue(sshKey.sign(payload))
+
+        // Naturally, this should verify.
+        XCTAssertNoThrow(XCTAssertTrue(publicKey.isValidSignature(signature, for: payload)))
+
+        // Now let's try round-tripping through bytebuffer.
+        var buffer = ByteBufferAllocator().buffer(capacity: 1024)
+        buffer.writeSSHSignature(signature)
+
+        let newSignature = try assertNoThrowWithValue(buffer.readSSHSignature()!)
+        XCTAssertNoThrow(XCTAssertTrue(publicKey.isValidSignature(newSignature, for: payload)))
+    }
+    #endif
 
     func testSigningDelegateFailsVerificationWithDifferentKey() throws {
         let edKey = Curve25519.Signing.PrivateKey()
